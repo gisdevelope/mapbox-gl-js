@@ -59,7 +59,6 @@ type MapOptions = {
     interactive?: boolean,
     container: HTMLElement | string,
     bearingSnap?: number,
-    classes?: Array<string>,
     attributionControl?: boolean,
     logoPosition?: ControlPosition,
     failIfMajorPerformanceCaveat?: boolean,
@@ -340,6 +339,9 @@ class Map extends Camera {
 
         this._setupContainer();
         this._setupPainter();
+        if (this.painter === undefined) {
+            throw new Error(`Failed to initialize WebGL.`);
+        }
 
         this.on('move', this._update.bind(this, false));
         this.on('zoom', this._update.bind(this, true));
@@ -1148,7 +1150,7 @@ class Map extends Camera {
                 'or object with `width`, `height`, and `data` properties with the same format as `ImageData`')));
         } else {
             const {width, height, data} = image;
-            this.style.addImage(id, { data: new RGBAImage({width, height}, data.slice(0)), pixelRatio, sdf });
+            this.style.addImage(id, { data: new RGBAImage({width, height}, new Uint8Array(data)), pixelRatio, sdf });
         }
     }
 
