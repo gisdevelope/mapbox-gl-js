@@ -6,7 +6,7 @@ import vt from '@mapbox/vector-tile';
 import Protobuf from 'pbf';
 import WorkerTile from './worker_tile';
 import { extend } from '../util/util';
-import perf from '../util/performance';
+import performance from '../util/performance';
 
 import type {
     WorkerSource,
@@ -102,15 +102,8 @@ class VectorTileWorkerSource implements WorkerSource {
         if (!this.loading)
             this.loading = {};
 
-        const marks = {};
-        const url = params && params.request && params.request.url;
-        const collectResourceTiming = params && params.request && params.request.collectResourceTiming;
-        if (url && collectResourceTiming) {
-            marks.start = [url, '#start'].join('#');
-            marks.end = [url, '#end'].join('#');
-            marks.measure = url.toString();
-            perf.mark(marks.start);
-        }
+        const perf = (params && params.request && params.request.collectResourceTiming) ?
+            new performance.Performance(params.request) : false;
 
         const workerTile = this.loading[uid] = new WorkerTile(params);
         workerTile.abort = this.loadVectorData(params, (err, response) => {
@@ -124,20 +117,10 @@ class VectorTileWorkerSource implements WorkerSource {
             const cacheControl = {};
             if (response.expires) cacheControl.expires = response.expires;
             if (response.cacheControl) cacheControl.cacheControl = response.cacheControl;
+
             const resourceTiming = {};
-            if (params.request && params.request.collectResourceTiming) {
-                if (params.request && params.request.collectResourceTiming)
-                    perf.mark(marks.end);
-                let resourceTimingData = perf.getEntriesByName(params.request.url);
-                // fallback if web worker implementation of perf.getEntriesByName returns empty
-                if (resourceTimingData.length === 0) {
-                    perf.measure(marks.measure, marks.start, marks.end);
-                    resourceTimingData = perf.getEntriesByName(marks.measure);
-                    // cleanup
-                    perf.clearMarks(marks.start);
-                    perf.clearMarks(marks.end);
-                    perf.clearMeasures(marks.measure);
-                }
+            if (perf) {
+                const resourceTimingData = perf.finish();
                 // it's necessary to eval the result of getEntriesByName() here via parse/stringify
                 // late evaluation in the main thread causes TypeError: illegal invocation
                 if (resourceTimingData)

@@ -2,7 +2,7 @@
 
 import { getJSON } from '../util/ajax';
 
-import perf from '../util/performance';
+import performance from '../util/performance';
 import rewind from 'geojson-rewind';
 import GeoJSONWrapper from './geojson_wrapper';
 import vtpbf from 'vt-pbf';
@@ -153,15 +153,8 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
         delete this._pendingCallback;
         delete this._pendingLoadDataParams;
 
-        const marks = {};
-        const url = params && params.request && params.request.url;
-        const collectResourceTiming = params && params.request && params.request.collectResourceTiming;
-        if (url && collectResourceTiming) {
-            marks.start = [url, '#start'].join('#');
-            marks.end = [url, '#end'].join('#');
-            marks.measure = url.toString();
-            perf.mark(marks.start);
-        }
+        const perf = (params && params.request && params.request.collectResourceTiming) ?
+            new performance.Performance(params.request) : false;
 
         this.loadGeoJSON(params, (err, data) => {
             if (err || !data) {
@@ -182,19 +175,8 @@ class GeoJSONWorkerSource extends VectorTileWorkerSource {
                 this.loaded = {};
 
                 const result = {};
-                if (params.request && params.request.collectResourceTiming) {
-                    if (params.request && params.request.collectResourceTiming)
-                        perf.mark(marks.end);
-                    let resourceTimingData = perf.getEntriesByName(params.request.url);
-                    // fallback if web worker implementation of perf.getEntriesByName returns empty
-                    if (marks.start && (resourceTimingData.length === 0)) {
-                        perf.measure(marks.measure, marks.start, marks.end);
-                        resourceTimingData = perf.getEntriesByName(marks.measure);
-                        // cleanup
-                        perf.clearMarks(marks.start);
-                        perf.clearMarks(marks.end);
-                        perf.clearMeasures(marks.measure);
-                    }
+                if (perf) {
+                    const resourceTimingData = perf.finish();
                     // it's necessary to eval the result of getEntriesByName() here via parse/stringify
                     // late evaluation in the main thread causes TypeError: illegal invocation
                     if (resourceTimingData) {
